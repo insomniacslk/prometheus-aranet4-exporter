@@ -32,6 +32,9 @@ func info(dev *aranet4.Device) (string, string, error) {
 
 func main() {
 	pflag.Parse()
+	if *flagMacAddress == "" {
+		log.Fatalf("Missing MAC address, see -m/--mac-address")
+	}
 	dev, err := aranet4.New(*flagMacAddress)
 	if err != nil {
 		log.Printf("Failed to create Aranet4 client: %v", err)
