@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,100 +14,98 @@ import (
 )
 
 var (
-	flagPath          = pflag.String("p", "/metrics", "HTTP path where to expose metrics to")
-	flagListen        = pflag.StringP("listen-address", "l", ":9101", "Address to listen to")
-	flagMacAddress    = pflag.StringP("mac-address", "m", "", "Path to speedtest-cli")
-	flagSleepInterval = pflag.DurationP("interval", "i", 30*time.Minute, "Interval between speedtest executions, expressed as a Go duration string")
+	flagPath       = pflag.String("p", "/metrics", "HTTP path where to expose metrics to")
+	flagListen     = pflag.StringP("listen-address", "l", ":9101", "Address to listen to")
+	flagMacAddress = pflag.StringP("mac-address", "m", "", "Path to speedtest-cli")
+	flagInterval   = pflag.DurationP("interval", "i", 1*time.Minute, "Interval between sensor readings, expressed as a Go duration string")
 )
 
-func aranet4measurement(mac net.HardwareAddr) (string, string, *aranet4.Data, error) {
-	dev, err := aranet4.New(strings.ToUpper(mac.String()))
-	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to create Aranet4 client: %w", err)
-	}
-	defer dev.Close()
-	name, err := dev.Name()
-	if err != nil {
-		return "", "", nil, fmt.Errorf("cannot get device name: %w", err)
-	}
-	version, err := dev.Version()
-	if err != nil {
-		return "", "", nil, fmt.Errorf("cannot get device version: %w", err)
-	}
-	data, err := dev.Read()
-	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to read measurement: %w", err)
-	}
-	return name, version, &data, nil
+func makeGauge(name, help string) *prometheus.GaugeVec {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "aranet4_" + name,
+			Help: "Aranet4 - " + help,
+		},
+		[]string{"name", "version", "interval"},
+	)
 }
 
-// NewAranet4Collector returns a new Aranet4Collector object.
-func NewAranet4Collector(macString string) (*Aranet4Collector, error) {
-	mac, err := net.ParseMAC(macString)
-	if err != nil {
-		return nil, fmt.Errorf("invalid MAC address: %w", err)
-	}
-	return &Aranet4Collector{
-		mac: mac,
-	}, nil
-}
-
-// Aranet4Collector is a prometheus collector for Aranet4 measurements.
-type Aranet4Collector struct {
-	mac net.HardwareAddr
-}
-
-var measurementDesc = prometheus.NewDesc(
-	"aranet4_measurement",
-	"Aranet4 CO2 measurement",
-	[]string{"name", "version", "humidity", "pressure", "temperature", "co2", "battery", "quality", "interval", "time"},
-	nil,
+var (
+	humidityGauge    = makeGauge("humidity", "humidity (percentage)")
+	pressureGauge    = makeGauge("pressure", "pressure (in the unit configured via Aranet4 app)")
+	temperatureGauge = makeGauge("temperature", "temperature (in the unit configured via Aranet4 app)")
+	co2Gauge         = makeGauge("co2", "CO2 (parts per million)")
+	batteryGauge     = makeGauge("battery", "battery (percentage)")
 )
 
-// Describe implements prometheus.Collector.Describe for WeatherCollector.
-func (ac *Aranet4Collector) Describe(ch chan<- *prometheus.Desc) {
-	prometheus.DescribeByCollect(ac, ch)
-}
+func collector(mac net.HardwareAddr) {
+	for {
+		dev, err := aranet4.New(strings.ToUpper(mac.String()))
+		if err != nil {
+			log.Printf("Failed to connect to Aranet4 device: %v", err)
+			time.Sleep(*flagInterval)
+			continue
+		}
+		defer dev.Close()
+		name, err := dev.Name()
+		if err != nil {
+			log.Printf("Failed to get Aranet4 device name: %v", err)
+			time.Sleep(*flagInterval)
+			continue
+		}
+		version, err := dev.Version()
+		if err != nil {
+			log.Printf("Failed to get Aranet4 device version: %v", err)
+			time.Sleep(*flagInterval)
+			continue
+		}
+		data, err := dev.Read()
+		if err != nil {
+			log.Printf("Failed to read Aranet4 device: %v", err)
+			time.Sleep(*flagInterval)
+			continue
+		}
+		log.Printf("Aranet4 reading for device '%s': %+v", name, data)
+		humidityGauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.H))
+		pressureGauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.P))
+		temperatureGauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.T))
+		co2Gauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.CO2))
+		batteryGauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.Battery))
 
-// Collect implements prometheus.Collector.Collect for WeatherCollector.
-func (ac *Aranet4Collector) Collect(ch chan<- prometheus.Metric) {
-	log.Printf("Reading measurement from Aranet4 device with MAC '%s'", ac.mac)
-	name, version, data, err := aranet4measurement(ac.mac)
-	if err != nil {
-		// if it fails, skip
-		log.Printf("Failed to read measurement from Aranet4 device with mac '%s': %v", ac.mac, err)
-	} else {
-		// update values
-		ch <- prometheus.MustNewConstMetric(
-			measurementDesc,
-			prometheus.GaugeValue,
-			1,
-			name,
-			version,
-			strconv.FormatFloat(data.H, 'f', -1, 64),
-			strconv.FormatFloat(data.P, 'f', -1, 64),
-			strconv.FormatFloat(data.T, 'f', -1, 64),
-			strconv.FormatInt(int64(data.CO2), 10),
-			strconv.FormatInt(int64(data.Battery), 10),
-			string(data.Quality),
-			data.Interval.String(),
-			data.Time.String(),
-		)
+		time.Sleep(*flagInterval)
 	}
 }
 
 func main() {
 	pflag.Parse()
 
-	wc, err := NewAranet4Collector(*flagMacAddress)
+	mac, err := net.ParseMAC(*flagMacAddress)
 	if err != nil {
-		log.Fatalf("Failed to create Aranet4 collector: %v", err)
-	}
-	if err := prometheus.Register(wc); err != nil {
-		log.Fatalf("Failed to register Aranet4 collector: %v", err)
+		log.Fatalf("Invalid MAC address: %v", err)
 	}
 
+	// register all gauges
+	if err := prometheus.Register(humidityGauge); err != nil {
+		log.Fatalf("Failed to register Aranet4 humidity gauge: %v", err)
+	}
+	if err := prometheus.Register(pressureGauge); err != nil {
+		log.Fatalf("Failed to register Aranet4 pressure gauge: %v", err)
+	}
+	if err := prometheus.Register(temperatureGauge); err != nil {
+		log.Fatalf("Failed to register Aranet4 temperature gauge: %v", err)
+	}
+	if err := prometheus.Register(co2Gauge); err != nil {
+		log.Fatalf("Failed to register Aranet4 co2 gauge: %v", err)
+	}
+	if err := prometheus.Register(batteryGauge); err != nil {
+		log.Fatalf("Failed to register Aranet4 battery gauge: %v", err)
+	}
+
+	// start collector
+	go collector(mac)
+
+	server := http.Server{Addr: *flagListen}
 	http.Handle(*flagPath, promhttp.Handler())
 	log.Printf("Starting server on %s", *flagListen)
-	log.Fatal(http.ListenAndServe(*flagListen, nil))
+	log.Fatal(server.ListenAndServe())
 }
