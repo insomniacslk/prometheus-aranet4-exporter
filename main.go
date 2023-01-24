@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,8 +22,8 @@ var (
 	flagSleepInterval = pflag.DurationP("interval", "i", 30*time.Minute, "Interval between speedtest executions, expressed as a Go duration string")
 )
 
-func aranet4measurement(mac string) (string, string, *aranet4.Data, error) {
-	dev, err := aranet4.New(mac)
+func aranet4measurement(mac net.HardwareAddr) (string, string, *aranet4.Data, error) {
+	dev, err := aranet4.New(strings.ToUpper(mac.String()))
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create Aranet4 client: %w", err)
 	}
@@ -73,7 +74,7 @@ func (ac *Aranet4Collector) Describe(ch chan<- *prometheus.Desc) {
 // Collect implements prometheus.Collector.Collect for WeatherCollector.
 func (ac *Aranet4Collector) Collect(ch chan<- prometheus.Metric) {
 	log.Printf("Reading measurement from Aranet4 device with MAC '%s'", ac.mac)
-	name, version, data, err := aranet4measurement(*flagMacAddress)
+	name, version, data, err := aranet4measurement(ac.mac)
 	if err != nil {
 		// if it fails, skip
 		log.Printf("Failed to read measurement from Aranet4 device with mac '%s': %v", ac.mac, err)

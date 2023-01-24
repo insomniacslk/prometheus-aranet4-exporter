@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -35,7 +36,7 @@ func main() {
 	if *flagMacAddress == "" {
 		log.Fatalf("Missing MAC address, see -m/--mac-address")
 	}
-	dev, err := aranet4.New(*flagMacAddress)
+	dev, err := aranet4.New(strings.ToUpper(*flagMacAddress))
 	if err != nil {
 		log.Printf("Failed to create Aranet4 client: %v", err)
 		return
