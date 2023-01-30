@@ -16,7 +16,7 @@ import (
 var (
 	flagPath       = pflag.String("p", "/metrics", "HTTP path where to expose metrics to")
 	flagListen     = pflag.StringP("listen-address", "l", ":9111", "Address to listen to")
-	flagMacAddress = pflag.StringP("mac-address", "m", "", "Path to speedtest-cli")
+	flagMacAddress = pflag.StringP("mac-address", "m", "", "Aranet4 Home devices's MAC address")
 	flagInterval   = pflag.DurationP("interval", "i", 1*time.Minute, "Interval between sensor readings, expressed as a Go duration string")
 )
 
@@ -46,25 +46,28 @@ func collector(mac net.HardwareAddr) {
 			time.Sleep(*flagInterval)
 			continue
 		}
-		defer dev.Close()
 		name, err := dev.Name()
 		if err != nil {
+			dev.Close()
 			log.Printf("Failed to get Aranet4 device name: %v", err)
 			time.Sleep(*flagInterval)
 			continue
 		}
 		version, err := dev.Version()
 		if err != nil {
+			dev.Close()
 			log.Printf("Failed to get Aranet4 device version: %v", err)
 			time.Sleep(*flagInterval)
 			continue
 		}
 		data, err := dev.Read()
 		if err != nil {
+			dev.Close()
 			log.Printf("Failed to read Aranet4 device: %v", err)
 			time.Sleep(*flagInterval)
 			continue
 		}
+		dev.Close()
 		log.Printf("Aranet4 reading for device '%s': %+v", name, data)
 		humidityGauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.H))
 		pressureGauge.WithLabelValues(name, version, data.Interval.String()).Set(float64(data.P))
