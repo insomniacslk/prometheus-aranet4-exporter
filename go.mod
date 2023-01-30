@@ -1,4 +1,4 @@
-module github.com/insomniacslk/airquality
+module github.com/insomniacslk/prometheus-aranet4-exporter
 
 go 1.18
 
