@@ -15,7 +15,7 @@ import (
 
 var (
 	flagPath       = pflag.String("p", "/metrics", "HTTP path where to expose metrics to")
-	flagListen     = pflag.StringP("listen-address", "l", ":9101", "Address to listen to")
+	flagListen     = pflag.StringP("listen-address", "l", ":9111", "Address to listen to")
 	flagMacAddress = pflag.StringP("mac-address", "m", "", "Path to speedtest-cli")
 	flagInterval   = pflag.DurationP("interval", "i", 1*time.Minute, "Interval between sensor readings, expressed as a Go duration string")
 )
