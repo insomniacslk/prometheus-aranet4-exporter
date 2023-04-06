@@ -53,6 +53,7 @@ func collector(mac net.HardwareAddr) {
 			time.Sleep(*flagInterval)
 			continue
 		}
+		log.Printf("Name: %s", name)
 		version, err := dev.Version()
 		if err != nil {
 			dev.Close()
@@ -60,6 +61,7 @@ func collector(mac net.HardwareAddr) {
 			time.Sleep(*flagInterval)
 			continue
 		}
+		log.Printf("Version: %v", version)
 		data, err := dev.Read()
 		if err != nil {
 			dev.Close()
