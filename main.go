@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"net/http"
@@ -39,20 +40,15 @@ var (
 )
 
 func collector(mac net.HardwareAddr) {
+	ctx := context.Background()
 	for {
-		dev, err := aranet4.New(strings.ToUpper(mac.String()))
+		dev, err := aranet4.New(ctx, strings.ToUpper(mac.String()))
 		if err != nil {
 			log.Printf("Failed to connect to Aranet4 device: %v", err)
 			time.Sleep(*flagInterval)
 			continue
 		}
-		name, err := dev.Name()
-		if err != nil {
-			dev.Close()
-			log.Printf("Failed to get Aranet4 device name: %v", err)
-			time.Sleep(*flagInterval)
-			continue
-		}
+		name := dev.Name()
 		log.Printf("Name: %s", name)
 		version, err := dev.Version()
 		if err != nil {

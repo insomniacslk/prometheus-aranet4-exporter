@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -14,16 +15,8 @@ var (
 	flagMacAddress = pflag.StringP("mac-address", "m", "", "Aranet4 device MAC address")
 )
 
-type deviceInfo struct {
-	Name    string
-	Version string
-}
-
 func info(dev *aranet4.Device) (string, string, error) {
-	name, err := dev.Name()
-	if err != nil {
-		return "", "", fmt.Errorf("cannot get device name: %w", err)
-	}
+	name := dev.Name()
 	version, err := dev.Version()
 	if err != nil {
 		return "", "", fmt.Errorf("cannot get device version: %w", err)
@@ -36,7 +29,8 @@ func main() {
 	if *flagMacAddress == "" {
 		log.Fatalf("Missing MAC address, see -m/--mac-address")
 	}
-	dev, err := aranet4.New(strings.ToUpper(*flagMacAddress))
+	ctx := context.Background()
+	dev, err := aranet4.New(ctx, strings.ToUpper(*flagMacAddress))
 	if err != nil {
 		log.Printf("Failed to create Aranet4 client: %v", err)
 		return
