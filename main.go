@@ -40,6 +40,7 @@ var (
 )
 
 func collector(mac net.HardwareAddr) {
+	log.Printf("Collector started")
 	ctx := context.Background()
 	for {
 		dev, err := aranet4.New(ctx, strings.ToUpper(mac.String()))
