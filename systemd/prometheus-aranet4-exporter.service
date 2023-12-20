@@ -1,0 +1,24 @@
+# prometheus-aranet4-exporter.service
+#
+# For using insomniacslk/prometheus-aranet4-exporter with a config file.
+
+[Unit]
+Description=prometheus-aranet4-exporter
+Documentation=https://github.com/insomniacslk/prometheus-aranet4-exporter
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=simple
+#User=insomniac
+#Group=insomniac
+ExecStart=/usr/local/bin/prometheus-aranet4-exporter -m f8:35:c6:42:22:f9 -i 5m
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+#AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=default.target
